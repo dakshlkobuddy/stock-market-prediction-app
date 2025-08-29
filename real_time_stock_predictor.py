@@ -31,10 +31,14 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.optimizers import Adam
+try:
+    import tensorflow as tf  # Optional for deployment; app can run without TF
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.optimizers import Adam
+    TENSORFLOW_AVAILABLE = True
+except Exception:
+    TENSORFLOW_AVAILABLE = False
 import ta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -235,6 +239,9 @@ class RealTimeStockPredictor:
         Returns:
             Compiled LSTM model
         """
+        if not TENSORFLOW_AVAILABLE:
+            raise RuntimeError("TensorFlow is not available in this environment")
+
         model = Sequential([
             LSTM(units=100, return_sequences=True, input_shape=input_shape),
             Dropout(0.2),
@@ -246,13 +253,13 @@ class RealTimeStockPredictor:
             Dropout(0.2),
             Dense(units=1, activation='linear')
         ])
-        
+
         model.compile(
             optimizer=Adam(learning_rate=0.001),
             loss='mse',
             metrics=['mae']
         )
-        
+
         return model
     
     def train_models(self, data: pd.DataFrame):
@@ -278,26 +285,24 @@ class RealTimeStockPredictor:
             )
             self.rf_model.fit(X_rf, y_rf)
             
-            # Prepare data for LSTM
-            X_lstm, y_lstm = self.prepare_lstm_data(data)
-            
-            if len(X_lstm) > 0:
-                # Build and train LSTM
-                self.lstm_model = self.build_lstm_model((X_lstm.shape[1], X_lstm.shape[2]))
-                
-                # Split data for training
-                split_idx = int(0.8 * len(X_lstm))
-                X_train, X_val = X_lstm[:split_idx], X_lstm[split_idx:]
-                y_train, y_val = y_lstm[:split_idx], y_lstm[split_idx:]
-                
-                # Train LSTM
-                self.lstm_model.fit(
-                    X_train, y_train,
-                    validation_data=(X_val, y_val),
-                    epochs=50,
-                    batch_size=32,
-                    verbose=1
-                )
+            # Prepare and optionally train LSTM (if TensorFlow is available)
+            if TENSORFLOW_AVAILABLE:
+                X_lstm, y_lstm = self.prepare_lstm_data(data)
+                if len(X_lstm) > 0:
+                    # Build and train LSTM
+                    self.lstm_model = self.build_lstm_model((X_lstm.shape[1], X_lstm.shape[2]))
+                    # Split data for training
+                    split_idx = int(0.8 * len(X_lstm))
+                    X_train, X_val = X_lstm[:split_idx], X_lstm[split_idx:]
+                    y_train, y_val = y_lstm[:split_idx], y_lstm[split_idx:]
+                    # Train LSTM
+                    self.lstm_model.fit(
+                        X_train, y_train,
+                        validation_data=(X_val, y_val),
+                        epochs=50,
+                        batch_size=32,
+                        verbose=1
+                    )
             
             # Save models
             self.save_models()
@@ -332,8 +337,8 @@ class RealTimeStockPredictor:
                 rf_pred = self.rf_model.predict(latest_features)[0]
                 predictions['random_forest'].append(rf_pred)
             
-            # LSTM prediction
-            if self.lstm_model is not None and len(data) >= self.sequence_length:
+            # LSTM prediction (only if TensorFlow available and model exists)
+            if TENSORFLOW_AVAILABLE and self.lstm_model is not None and len(data) >= self.sequence_length:
                 # Prepare sequence for LSTM
                 latest_sequence = data[self.feature_columns].iloc[-self.sequence_length:].values
                 latest_sequence_scaled = self.scaler.transform(latest_sequence)
@@ -689,9 +694,9 @@ class RealTimeStockPredictor:
                 with open(rf_path, 'rb') as f:
                     self.rf_model = pickle.load(f)
             
-            # Load LSTM model
+            # Load LSTM model (only if TensorFlow available)
             lstm_path = f'models/lstm_model_{self.symbol}.h5'
-            if os.path.exists(lstm_path):
+            if TENSORFLOW_AVAILABLE and os.path.exists(lstm_path):
                 self.lstm_model = tf.keras.models.load_model(lstm_path)
             
             # Load scaler

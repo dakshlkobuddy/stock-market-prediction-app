@@ -411,7 +411,7 @@ def main():
             if not predictor.data.empty:
                 predictions = predictor.predict_next_days(predictor.data)
                 
-                if predictions['ensemble']:
+                if predictions.get('ensemble'):
                     predicted_price = predictions['ensemble'][0]
                     current_price = predictor.data['Close'].iloc[-1]
                     change_pct = ((predicted_price - current_price) / current_price) * 100
@@ -465,13 +465,13 @@ def main():
                     # Model predictions comparison
                     st.subheader("🤖 Model Predictions")
                     
-                    if predictions['lstm']:
+                    if predictions.get('lstm'):
                         st.metric("LSTM", f"${predictions['lstm'][0]:.2f}")
                     
-                    if predictions['random_forest']:
+                    if predictions.get('random_forest'):
                         st.metric("Random Forest", f"${predictions['random_forest'][0]:.2f}")
                     
-                    if predictions['ensemble']:
+                    if predictions.get('ensemble'):
                         st.metric("Ensemble", f"${predictions['ensemble'][0]:.2f}")
                 
                 else:
