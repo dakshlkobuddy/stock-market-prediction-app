@@ -1,0 +1,2 @@
+# System dependencies for the stock prediction app
+# These will be installed automatically by Streamlit Cloud
